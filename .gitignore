@@ -1,0 +1,42 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.so
+
+# ── Virtual environment ────────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── Database ───────────────────────────────────────────────────────────────────
+# The database contains YOUR PERSONAL FINANCIAL DATA.
+# Never commit it to a public (or private) repository.
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+# If you ever add a .env file (e.g. for hosting secrets), keep it out of Git.
+.env
+.env.*
+*.env
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs / temp ───────────────────────────────────────────────────────────────
+*.log
+*.tmp
