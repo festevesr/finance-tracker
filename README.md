@@ -4,6 +4,8 @@ A local web app to track your banks, accounts, credit cards, loans, mortgages, t
 
 Built with **FastAPI + SQLite** on the backend and plain **HTML/CSS/JavaScript** (no frameworks) on the frontend.
 
+![Dashboard screenshot placeholder](https://via.placeholder.com/900x450?text=Dashboard+screenshot)
+
 ---
 
 ## Features

@@ -45,19 +45,23 @@ export function renderCategoryChart(container, items, currency) {
   const wrap = el("div", { class: "category-chart-wrap" });
   container.appendChild(wrap);
 
-  const total = (items || []).reduce((sum, i) => sum + i.amount, 0);
-  if (!items || items.length === 0 || total <= 0) {
-    wrap.appendChild(el("div", { class: "empty-state" }, "No spending recorded in this range."));
+  const filteredItems = (items || []).filter((i) => Math.abs(i.amount) > 0.001);
+  if (filteredItems.length === 0) {
+    wrap.appendChild(el("div", { class: "empty-state" }, "No transactions recorded in this range."));
     return;
   }
 
+  const totalAbs = filteredItems.reduce((sum, i) => sum + Math.abs(i.amount), 0);
+
   let cumulativeAngle = -90; // start at the top
-  const slices = items.map((item, i) => {
-    const fraction = item.amount / total;
+  const slices = filteredItems.map((item, i) => {
+    const fraction = Math.abs(item.amount) / totalAbs;
     const startAngle = cumulativeAngle;
     const endAngle = cumulativeAngle + fraction * 360;
     cumulativeAngle = endAngle;
-    return { ...item, startAngle, endAngle, fraction, color: PALETTE[i % PALETTE.length] };
+    // In net mode, negative amounts (net outflow categories) get a muted color.
+    const baseColor = PALETTE[i % PALETTE.length];
+    return { ...item, startAngle, endAngle, fraction, color: baseColor };
   });
 
   const tooltip = el("div", { class: "chart-tooltip hidden" });
@@ -76,7 +80,9 @@ export function renderCategoryChart(container, items, currency) {
       path.classList.add("is-hovered");
       tooltip.innerHTML = "";
       tooltip.appendChild(el("div", { class: "chart-tooltip-title" }, s.category));
-      tooltip.appendChild(el("div", { class: "chart-tooltip-row" }, `${formatMoney(s.amount, currency)} · ${(s.fraction * 100).toFixed(1)}%`));
+      const signedAmt = (s.amount < 0 ? "-" : "+") + formatMoney(Math.abs(s.amount), currency);
+      const pctLabel = `${(s.fraction * 100).toFixed(1)}%`;
+      tooltip.appendChild(el("div", { class: "chart-tooltip-row" }, `${signedAmt} · ${pctLabel}`));
       tooltip.classList.remove("hidden");
     });
     path.addEventListener("mousemove", (e) => positionTooltip(tooltip, wrap, e.clientX, e.clientY));
@@ -91,8 +97,12 @@ export function renderCategoryChart(container, items, currency) {
   const legend = el(
     "div",
     { class: "category-legend" },
-    slices.map((s, i) =>
-      el(
+    slices.map((s, i) => {
+      const amountLabel = s.amount < 0
+        ? "-" + formatMoney(Math.abs(s.amount), currency)
+        : formatMoney(s.amount, currency);
+      const amountClass = s.amount < 0 ? "category-legend-amount negative" : "category-legend-amount";
+      return el(
         "div",
         {
           class: "category-legend-item",
@@ -102,11 +112,11 @@ export function renderCategoryChart(container, items, currency) {
         [
           el("span", { class: "category-legend-swatch", style: `background:${s.color}` }),
           el("span", { class: "category-legend-label" }, s.category),
-          el("span", { class: "category-legend-amount" }, formatMoney(s.amount, currency)),
+          el("span", { class: amountClass }, amountLabel),
           el("span", { class: "category-legend-pct" }, `${(s.fraction * 100).toFixed(0)}%`),
         ]
-      )
-    )
+      );
+    })
   );
 
   const row = el("div", { class: "category-chart-row" }, [svg, legend]);

@@ -13,6 +13,7 @@ let selectedCurrency = "USD";
 let selectedRangePreset = "all";
 let customStart = "";
 let customEnd = "";
+let selectedCategoryDirection = "outflow";
 
 const RANGE_PRESETS = {
   all: { label: "All time" },
@@ -158,13 +159,31 @@ export async function renderDashboard(container, navigate) {
     const range = getCurrentRange();
     const [history, breakdown] = await Promise.all([
       api.getNetWorthHistory(selectedCurrency, range.start, range.end),
-      api.getCategoryBreakdown(selectedCurrency, range.start, range.end),
+      api.getCategoryBreakdown(selectedCurrency, range.start, range.end, selectedCategoryDirection),
     ]);
 
     const lineCard = el("div", { class: "chart-card" }, el("div", { class: "chart-card-title" }, "Net worth over time"));
     renderNetWorthChart(lineCard, history.points, history.currency);
 
-    const pieCard = el("div", { class: "chart-card" }, el("div", { class: "chart-card-title" }, "Spending by category"));
+    const categoryTitleRow = el("div", { class: "category-title-row" }, [
+      el("div", { class: "chart-card-title" }, "By category"),
+      el(
+        "select",
+        {
+          class: "category-direction-select",
+          onchange: async (e) => {
+            selectedCategoryDirection = e.target.value;
+            await refreshCharts();
+          },
+        },
+        [
+          el("option", { value: "outflow", ...(selectedCategoryDirection === "outflow" ? { selected: true } : {}) }, "Spending (outflow)"),
+          el("option", { value: "inflow", ...(selectedCategoryDirection === "inflow" ? { selected: true } : {}) }, "Income (inflow)"),
+          el("option", { value: "net", ...(selectedCategoryDirection === "net" ? { selected: true } : {}) }, "Net flow"),
+        ]
+      ),
+    ]);
+    const pieCard = el("div", { class: "chart-card" }, [categoryTitleRow]);
     renderCategoryChart(pieCard, breakdown.items, breakdown.currency);
 
     chartsRow.appendChild(lineCard);

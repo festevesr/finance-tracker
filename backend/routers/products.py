@@ -2,6 +2,8 @@
 Everything related to managing products (savings accounts, cards, loans,
 mortgages, time deposits, mutual funds, investments) lives here.
 """
+from datetime import date as date_type
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -151,23 +153,25 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{product_id}/settle-cycle", response_model=schemas.CycleSettleOut)
-def settle_credit_card_cycle(product_id: int, db: Session = Depends(get_db)):
+def settle_credit_card_cycle(
+    product_id: int,
+    settle_date: date_type | None = None,
+    db: Session = Depends(get_db),
+):
     """
     Marks a billing cycle as paid for a credit card family (primary +
     any additional cards). Call this AFTER recording the actual payment
-    from your savings account as a regular inflow on the primary card.
+    from your savings account via a Transfer on the primary card.
 
-    What this does:
-    - Sets the primary card balance to zero (records a settlement
-      marker so it shows as paid).
-    - Resets each additional card's own accumulated activity to zero
-      with a matching settlement marker.
+    What this does: creates one inflow transaction per additional card
+    (tagged is_settlement=True) that brings its own accumulated activity
+    back to zero. It does NOT touch the primary card's stored balance —
+    the real payment transfer already did that.
 
-    Use the regular 'Transfer' feature to record the money moving from
-    your savings account to the credit card first — then use
-    'Settle cycle' to zero out the additional cards' display totals too.
+    Deleting a settlement transaction also does NOT touch the primary
+    card — it just removes the marker so the display goes back to
+    showing the pre-settlement activity.
     """
-    from datetime import date as dt_date
 
     product = db.query(models.Product).get(product_id)
     if not product:
@@ -175,30 +179,24 @@ def settle_credit_card_cycle(product_id: int, db: Session = Depends(get_db)):
     if product.type != "credit_card":
         raise HTTPException(400, "Only a primary credit_card can settle a billing cycle.")
 
-    today = dt_date.today()
-    settled_txs = []
-    total_settled = 0.0
+    cycle_date = settle_date or date_type.today()
 
     additional_cards = db.query(models.Product).filter(
         models.Product.linked_product_id == product_id,
         models.Product.type == "additional_credit_card",
     ).all()
 
+    settled_txs = []
+    total_settled = 0.0
+
     for card in additional_cards:
         own_balance = balance_service.get_display_balance(card)
         if abs(own_balance) < 0.001:
-            continue  # nothing to zero out on this card
+            continue  # already at zero
 
-        # A settlement is an inflow that brings the additional card's
-        # own display back to zero. It does NOT affect the primary card
-        # balance (which the real payment already handled) — so we add
-        # directly to the additional card's internal sum only, not via
-        # apply_transaction (which would hit the primary card's balance).
-        # We do this by applying it as an inflow at the balance_service
-        # level but directing it at the additional card itself.
         settle_tx = models.Transaction(
             product_id=card.id,
-            date=today,
+            date=cycle_date,
             name="Billing cycle settled",
             description="Monthly billing cycle closed — additional card balance reset to zero",
             category=None,
@@ -207,21 +205,15 @@ def settle_credit_card_cycle(product_id: int, db: Session = Depends(get_db)):
             currency=card.currency,
             exchange_rate=None,
             converted_amount=abs(own_balance),
-            is_transfer=True,
+            is_transfer=False,   # NOT a transfer — no pair, no balance column touched
+            is_settlement=True,  # special flag so delete skips reverse_transaction
         )
         db.add(settle_tx)
-        # Directly update the primary card's balance (the owner) to
-        # cancel out the additional card's portion. The real payment
-        # was already recorded separately as a transfer; this settlement
-        # marker is purely for display bookkeeping on the additional card.
-        # Because apply_transaction would double-touch the primary card,
-        # we update the additional card's *shadow* accumulation instead
-        # by crediting the owner of the additional card directly.
-        # Actually: the additional card display_balance is computed from
-        # its own transactions only (get_own_activity_balance). So we
-        # simply need to record an inflow on it to bring that sum to 0.
-        # No balance_service.apply_transaction call needed here — that
-        # would double-count on the primary card.
+        # No apply_transaction call: additional card display_balance is
+        # computed from its own transactions (get_own_activity_balance),
+        # so just adding/removing this row is enough to change the display.
+        # The primary card's stored balance was already handled by the
+        # real payment transfer; touching it here would double-count.
         db.flush()
         settled_txs.append(settle_tx)
         total_settled += abs(own_balance)

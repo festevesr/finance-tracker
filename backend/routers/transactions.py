@@ -86,6 +86,11 @@ def update_transaction(transaction_id: int, payload: schemas.TransactionUpdate, 
             400,
             "Transfers can't be edited since they move money on both sides at once — delete it and create a new transfer instead.",
         )
+    if transaction.is_settlement:
+        raise HTTPException(
+            400,
+            "Billing cycle settlements can't be edited — delete it and re-run 'Settle billing cycle' if needed.",
+        )
 
     product = db.query(models.Product).get(transaction.product_id)
     if not product:
@@ -130,6 +135,16 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
 
     if transaction.is_transfer:
         transfers_service.delete_transfer_pair(db, transaction)
+        return
+
+    if transaction.is_settlement:
+        # Settlement transactions are pure display bookkeeping — they
+        # never touched any stored balance column when created, so
+        # simply removing the row is all that's needed. The additional
+        # card's display_balance is recomputed from its transactions,
+        # so it automatically goes back to the pre-settlement figure.
+        db.delete(transaction)
+        db.commit()
         return
 
     product = db.query(models.Product).get(transaction.product_id)

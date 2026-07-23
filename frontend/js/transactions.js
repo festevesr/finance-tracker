@@ -292,12 +292,14 @@ export async function renderTransactionsSection(container, product, navigate) {
 
     const categoryCell = tx.is_transfer
       ? el("span", { class: "tag tag-transfer", title: "Money moved between two of your own products — not counted as spending or income" }, "⇄ Transfer")
-      : tx.category
-        ? el("span", { class: "tag" }, tx.category)
-        : "—";
+      : tx.is_settlement
+        ? el("span", { class: "tag tag-settlement", title: "Billing cycle closed — additional card display reset to zero" }, "✓ Cycle settled")
+        : tx.category
+          ? el("span", { class: "tag" }, tx.category)
+          : "—";
 
     const rowActions = [];
-    if (!tx.is_transfer) {
+    if (!tx.is_transfer && !tx.is_settlement) {
       rowActions.push(
         el(
           "button",
@@ -324,7 +326,9 @@ export async function renderTransactionsSection(container, product, navigate) {
             e.stopPropagation();
             const confirmMsg = tx.is_transfer
               ? "Delete this transfer? Both sides (the outflow and the matching inflow) will be removed."
-              : "Delete this transaction?";
+              : tx.is_settlement
+                ? "Delete this settlement marker? The additional card's display balance will go back to its pre-settlement value."
+                : "Delete this transaction?";
             if (!confirm(confirmMsg)) return;
             await api.deleteTransaction(tx.id);
             navigate("product", { productId: product.id });
@@ -334,8 +338,9 @@ export async function renderTransactionsSection(container, product, navigate) {
       )
     );
 
-    const rowAttrs = { class: tx.is_transfer ? "is-transfer-row" : "" };
-    if (!tx.is_transfer) rowAttrs.onclick = () => openEditTransactionDialog(product, ownerCurrency, tx);
+    const isSpecialRow = tx.is_transfer || tx.is_settlement;
+    const rowAttrs = { class: isSpecialRow ? "is-transfer-row" : "" };
+    if (!isSpecialRow) rowAttrs.onclick = () => openEditTransactionDialog(product, ownerCurrency, tx);
 
     tbody.appendChild(
       el("tr", rowAttrs, [
@@ -343,7 +348,7 @@ export async function renderTransactionsSection(container, product, navigate) {
         el("td", {}, [tx.name, tx.description ? el("div", { class: "field-hint" }, tx.description) : null]),
         el("td", {}, categoryCell),
         el("td", { class: `amount ${amountClass}` }, [primaryAmount, rateNote].filter(Boolean)),
-        el("td", { class: "row-actions" }, rowActions),
+        el("td", {}, el("div", { class: "row-actions" }, rowActions)),
       ])
     );
   }

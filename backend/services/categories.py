@@ -1,16 +1,20 @@
 """
-Spending-by-category breakdown for the net worth page's pie chart.
-Only outflow transactions count as "spending" here; inflows (income,
-transfers in, card payments) are intentionally excluded. Transfers
-between the user's own products (is_transfer=True — paying a card from
-savings, funding a time deposit, account-to-account moves) are also
-excluded on either side, since they're not real spending or income.
+Category breakdown for the net worth page's chart.
+Supports three views:
+  - "outflow" (default): spending only — what you paid out
+  - "inflow": income and incoming transfers — what came in
+  - "net": outflow minus inflow per category (positive = net income for that category)
+
+Transfers (is_transfer=True) and billing-cycle settlements (is_settlement=True)
+are excluded from all views since they're not real income or expense.
 """
 from collections import defaultdict
 from datetime import date as date_type
 
 import models
 from services import balance as balance_service
+
+VALID_DIRECTIONS = {"outflow", "inflow", "net"}
 
 
 def compute_breakdown(
@@ -19,11 +23,22 @@ def compute_breakdown(
     rates: dict[str, float],
     start_date: date_type | None = None,
     end_date: date_type | None = None,
+    direction: str = "outflow",
 ) -> dict:
-    query = db.query(models.Transaction).filter(
-        models.Transaction.direction == "outflow",
-        models.Transaction.is_transfer == False,  # noqa: E712 (SQLAlchemy requires == here, not `is False`)
-    )
+    if direction not in VALID_DIRECTIONS:
+        direction = "outflow"
+
+    # Always exclude transfers and settlements — they're not real income/expense.
+    base_filter = [
+        models.Transaction.is_transfer == False,   # noqa: E712
+        models.Transaction.is_settlement == False, # noqa: E712
+    ]
+    if direction == "net":
+        query = db.query(models.Transaction).filter(*base_filter)
+    else:
+        query = db.query(models.Transaction).filter(
+            *base_filter, models.Transaction.direction == direction
+        )
     if start_date:
         query = query.filter(models.Transaction.date >= start_date)
     if end_date:
@@ -39,15 +54,19 @@ def compute_breakdown(
         product = products_by_id.get(tx.product_id)
         if product is None:
             continue
-        # converted_amount is already in the product's own currency.
         converted = balance_service.convert_value(tx.converted_amount, product.currency, target_currency, rates)
         category = (tx.category or "").strip() or "Uncategorized"
         if converted is None:
             missing_rates.add(product.currency)
             continue
-        totals[category] += converted
+        # For "net", outflows reduce the total, inflows increase it.
+        if direction == "net":
+            totals[category] += converted if tx.direction == "inflow" else -converted
+        else:
+            totals[category] += converted
 
     items = [{"category": c, "amount": round(a, 2)} for c, a in totals.items()]
-    items.sort(key=lambda item: -item["amount"])
+    # For net: sort by absolute value so large positive and negative both surface.
+    items.sort(key=lambda item: -abs(item["amount"]))
 
     return {"items": items, "missing_rates": sorted(missing_rates)}

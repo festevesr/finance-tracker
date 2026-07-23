@@ -3,7 +3,7 @@
  * and the full-page product detail view (balance + meta + transactions).
  */
 import * as api from "./api.js";
-import { el, productLabel, formatMoney, PRODUCT_TYPES, LIABILITY_TYPES, LINKED_PRODUCT_TYPES } from "./utils.js";
+import { el, productLabel, formatMoney, localISODate, PRODUCT_TYPES, LIABILITY_TYPES, LINKED_PRODUCT_TYPES } from "./utils.js";
 import { attachCurrencySelect } from "./currency-select.js";
 import { renderTransactionsSection } from "./transactions.js";
 
@@ -271,11 +271,21 @@ export async function renderProductView(container, productId, navigate) {
           type: "button",
           title: "After paying this card from savings, use this to reset the additional cards' own balances to zero for the new billing cycle.",
           onclick: async () => {
-            if (!confirm("Settle billing cycle?\n\nThis will zero out each additional card's own balance display, marking the cycle as closed.\n\nMake sure you've already recorded the actual payment from your savings account first.")) return;
+            const dateStr = prompt(
+              "Settle billing cycle\n\nEnter the settlement date (the date the cycle closed on your bank statement).\nFormat: YYYY-MM-DD",
+              localISODate()
+            );
+            if (dateStr === null) return; // user cancelled
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+            if (!datePattern.test(dateStr)) {
+              alert("Invalid date format. Please use YYYY-MM-DD (e.g. 2026-06-10).");
+              return;
+            }
+            if (!confirm(`Settle billing cycle on ${dateStr}?\n\nThis will zero out each additional card's own balance display.\n\nMake sure you've already recorded the actual payment from your savings account first.`)) return;
             try {
-              const result = await api.settleCreditCardCycle(product.id);
+              const result = await api.settleCreditCardCycle(product.id, dateStr);
               if (result.total_settled > 0) {
-                alert(`Billing cycle settled. Reset ${result.settled_transactions.length} additional card(s), total ${result.total_settled} ${result.currency}.`);
+                alert(`Billing cycle settled on ${dateStr}. Reset ${result.settled_transactions.length} additional card(s), total ${result.total_settled} ${result.currency}.`);
               } else {
                 alert("Nothing to settle — all additional cards already show zero.");
               }

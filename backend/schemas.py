@@ -131,6 +131,7 @@ class TransactionOut(BaseModel):
     converted_amount: float
     is_transfer: bool
     transfer_pair_id: Optional[int]
+    is_settlement: bool
 
     class Config:
         from_attributes = True

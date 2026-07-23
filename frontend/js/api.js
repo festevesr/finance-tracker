@@ -52,7 +52,10 @@ export const getProduct = (id) => request(`/products/${id}`);
 export const createProduct = (payload) => request("/products", { method: "POST", body: JSON.stringify(payload) });
 export const updateProduct = (id, payload) => request(`/products/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 export const deleteProduct = (id) => request(`/products/${id}`, { method: "DELETE" });
-export const settleCreditCardCycle = (id) => request(`/products/${id}/settle-cycle`, { method: "POST" });
+export const settleCreditCardCycle = (id, settleDate) => {
+  const qs = settleDate ? `?settle_date=${settleDate}` : "";
+  return request(`/products/${id}/settle-cycle${qs}`, { method: "POST" });
+};
 
 // ---- Transactions ----
 export const getTransactions = (productId) => request(`/products/${productId}/transactions`);
@@ -82,8 +85,8 @@ function buildQuery(params) {
 export const getDashboard = (currency) => request(`/dashboard${buildQuery({ currency })}`);
 export const getNetWorthHistory = (currency, startDate, endDate) =>
   request(`/dashboard/history${buildQuery({ currency, start_date: startDate, end_date: endDate })}`);
-export const getCategoryBreakdown = (currency, startDate, endDate) =>
-  request(`/dashboard/categories${buildQuery({ currency, start_date: startDate, end_date: endDate })}`);
+export const getCategoryBreakdown = (currency, startDate, endDate, direction) =>
+  request(`/dashboard/categories${buildQuery({ currency, start_date: startDate, end_date: endDate, direction })}`);
 export const getTicker = () => request("/dashboard/ticker");
 
 // ---- Transfers (moving money between two of the user's own products) ----

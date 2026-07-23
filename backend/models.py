@@ -136,6 +136,13 @@ class Transaction(Base):
     # set together via /api/transfers; null for ordinary transactions.
     transfer_pair_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
 
+    # True for billing-cycle settlement markers on additional credit
+    # cards. These are pure display bookkeeping — they never touch any
+    # stored balance column, so their deletion must also skip
+    # reverse_transaction. The display_balance for additional cards is
+    # recomputed from transactions, so removing the row is sufficient.
+    is_settlement = Column(Boolean, nullable=False, default=False)
+
     created_at = Column(DateTime, default=datetime.now)
 
     product = relationship(

@@ -86,12 +86,13 @@ def get_category_breakdown(
     currency: str = "USD",
     start_date: date | None = None,
     end_date: date | None = None,
+    direction: str = "outflow",
     db: Session = Depends(get_db),
 ):
     target_currency = currency.strip().upper()
     fx.ensure_fresh_cache(db)
     rates = fx.get_cached_rates(db)
-    result = categories_service.compute_breakdown(db, target_currency, rates, start_date, end_date)
+    result = categories_service.compute_breakdown(db, target_currency, rates, start_date, end_date, direction)
     return schemas.CategoryBreakdownOut(
         currency=target_currency,
         items=[schemas.CategoryAmount(**i) for i in result["items"]],

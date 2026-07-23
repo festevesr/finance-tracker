@@ -318,6 +318,7 @@ button { font-family: inherit; }
   padding: 2px 8px;
 }
 .tag-transfer { color: var(--text-muted); border-style: dashed; cursor: help; }
+.tag-settlement { color: #5BC8AF; border-color: #5BC8AF; border-style: dashed; cursor: help; }
 
 /* ==========================================================================
    Product cards (bank detail view)
@@ -710,6 +711,25 @@ button { font-family: inherit; }
   letter-spacing: 0.05em;
   margin-bottom: 12px;
 }
+.category-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.category-title-row .chart-card-title { margin-bottom: 0; }
+.category-direction-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.category-direction-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .category-chart-wrap {
   background: var(--surface);
@@ -760,6 +780,7 @@ button { font-family: inherit; }
   color: var(--text-secondary);
   white-space: nowrap;
 }
+.category-legend-amount.negative { color: var(--liability); }
 .category-legend-pct {
   font-family: var(--font-mono);
   color: var(--text-muted);
